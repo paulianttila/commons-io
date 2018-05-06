@@ -16,8 +16,6 @@
  */
 package org.apache.commons.io.input;
 
-import static org.apache.commons.io.IOUtils.EOF;
-
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -37,13 +35,17 @@ import org.apache.commons.io.FileUtils;
  * implement every method).
  * </p>
  *
- * <p>For example:</p>
+ * <p>
+ * For example:
+ * </p>
+ *
  * <pre>
- *  public class MyTailerListener extends TailerListenerAdapter {
- *      public void handle(String line) {
- *          System.out.println(line);
- *      }
- *  }</pre>
+ * public class MyTailerListener extends TailerListenerAdapter {
+ *     public void handle(String line) {
+ *         System.out.println(line);
+ *     }
+ * }
+ * </pre>
  *
  * <h2>2. Using a Tailer</h2>
  *
@@ -51,15 +53,15 @@ import org.apache.commons.io.FileUtils;
  * You can create and use a Tailer in one of three ways:
  * </p>
  * <ul>
- *   <li>Using one of the static helper methods:
- *     <ul>
- *       <li>{@link Tailer#create(File, TailerListener)}</li>
- *       <li>{@link Tailer#create(File, TailerListener, long)}</li>
- *       <li>{@link Tailer#create(File, TailerListener, long, boolean)}</li>
- *     </ul>
- *   </li>
- *   <li>Using an {@link java.util.concurrent.Executor}</li>
- *   <li>Using an {@link Thread}</li>
+ * <li>Using one of the static helper methods:
+ * <ul>
+ * <li>{@link Tailer#create(File, TailerListener)}</li>
+ * <li>{@link Tailer#create(File, TailerListener, long)}</li>
+ * <li>{@link Tailer#create(File, TailerListener, long, boolean)}</li>
+ * </ul>
+ * </li>
+ * <li>Using an {@link java.util.concurrent.Executor}</li>
+ * <li>Using an {@link Thread}</li>
  * </ul>
  *
  * <p>
@@ -69,48 +71,62 @@ import org.apache.commons.io.FileUtils;
  * <h3>2.1 Using the static helper method</h3>
  *
  * <pre>
- *      TailerListener listener = new MyTailerListener();
- *      Tailer tailer = Tailer.create(file, listener, delay);</pre>
+ * TailerListener listener = new MyTailerListener();
+ * Tailer tailer = Tailer.create(file, listener, delay);
+ * </pre>
  *
  * <h3>2.2 Using an Executor</h3>
  *
  * <pre>
- *      TailerListener listener = new MyTailerListener();
- *      Tailer tailer = new Tailer(file, listener, delay);
+ * TailerListener listener = new MyTailerListener();
+ * Tailer tailer = new Tailer(file, listener, delay);
  *
- *      // stupid executor impl. for demo purposes
- *      Executor executor = new Executor() {
- *          public void execute(Runnable command) {
- *              command.run();
- *           }
- *      };
+ * // stupid executor impl. for demo purposes
+ * Executor executor = new Executor() {
+ *     public void execute(Runnable command) {
+ *         command.run();
+ *     }
+ * };
  *
- *      executor.execute(tailer);
+ * executor.execute(tailer);
  * </pre>
  *
  *
  * <h3>2.3 Using a Thread</h3>
+ *
  * <pre>
- *      TailerListener listener = new MyTailerListener();
- *      Tailer tailer = new Tailer(file, listener, delay);
- *      Thread thread = new Thread(tailer);
- *      thread.setDaemon(true); // optional
- *      thread.start();</pre>
+ * TailerListener listener = new MyTailerListener();
+ * Tailer tailer = new Tailer(file, listener, delay);
+ * Thread thread = new Thread(tailer);
+ * thread.setDaemon(true); // optional
+ * thread.start();
+ * </pre>
  *
  * <h2>3. Stopping a Tailer</h2>
- * <p>Remember to stop the tailer when you have done with it:</p>
+ * <p>
+ * Remember to stop the tailer when you have done with it:
+ * </p>
+ *
  * <pre>
- *      tailer.stop();
+ * tailer.stop();
  * </pre>
  *
  * <h2>4. Interrupting a Tailer</h2>
- * <p>You can interrupt the thread a tailer is running on by calling {@link Thread#interrupt()}.</p>
- * <pre>
- *      thread.interrupt();
- * </pre>
- * <p>If you interrupt a tailer, the tailer listener is called with the {@link InterruptedException}.</p>
+ * <p>
+ * You can interrupt the thread a tailer is running on by calling {@link Thread#interrupt()}.
+ * </p>
  *
- * <p>The file is read using the default charset; this can be overridden if necessary</p>
+ * <pre>
+ * thread.interrupt();
+ * </pre>
+ * <p>
+ * If you interrupt a tailer, the tailer listener is called with the {@link InterruptedException}.
+ * </p>
+ *
+ * <p>
+ * The file is read using the default charset; this can be overridden if necessary
+ * </p>
+ *
  * @see TailerListener
  * @see TailerListenerAdapter
  * @version $Id$
@@ -128,6 +144,8 @@ public class Tailer implements Runnable {
     // The default charset used for reading files
     private static final Charset DEFAULT_CHARSET = Charset.defaultCharset();
 
+    private static final int EOF = -1;
+
     /**
      * Buffer on top of RandomAccessFile.
      */
@@ -141,7 +159,7 @@ public class Tailer implements Runnable {
     /**
      * The character set that will be used to read the file.
      */
-    private final Charset charset;
+    private final Charset cset;
 
     /**
      * The amount of time to wait for the file to be updated.
@@ -164,12 +182,18 @@ public class Tailer implements Runnable {
     private final boolean reOpen;
 
     /**
+     * Whether to ignore reading modified file with the same length.
+     */
+    private final boolean ignoreNew;
+
+    /**
      * The tailer will run as long as this value is true.
      */
     private volatile boolean run = true;
 
     /**
      * Creates a Tailer for the given file, starting from the beginning, with the default delay of 1.0s.
+     *
      * @param file The file to follow.
      * @param listener the TailerListener to use.
      */
@@ -179,6 +203,7 @@ public class Tailer implements Runnable {
 
     /**
      * Creates a Tailer for the given file, starting from the beginning.
+     *
      * @param file the file to follow.
      * @param listener the TailerListener to use.
      * @param delayMillis the delay between checks of the file for new content in milliseconds.
@@ -189,6 +214,7 @@ public class Tailer implements Runnable {
 
     /**
      * Creates a Tailer for the given file, with a delay other than the default 1.0s.
+     *
      * @param file the file to follow.
      * @param listener the TailerListener to use.
      * @param delayMillis the delay between checks of the file for new content in milliseconds.
@@ -200,6 +226,7 @@ public class Tailer implements Runnable {
 
     /**
      * Creates a Tailer for the given file, with a delay other than the default 1.0s.
+     *
      * @param file the file to follow.
      * @param listener the TailerListener to use.
      * @param delayMillis the delay between checks of the file for new content in milliseconds.
@@ -207,12 +234,28 @@ public class Tailer implements Runnable {
      * @param reOpen if true, close and reopen the file between reading chunks
      */
     public Tailer(final File file, final TailerListener listener, final long delayMillis, final boolean end,
-                  final boolean reOpen) {
+            final boolean reOpen) {
         this(file, listener, delayMillis, end, reOpen, DEFAULT_BUFSIZE);
     }
 
     /**
+     * Creates a Tailer for the given file, with a delay other than the default 1.0s.
+     *
+     * @param file the file to follow.
+     * @param listener the TailerListener to use.
+     * @param delayMillis the delay between checks of the file for new content in milliseconds.
+     * @param end Set to true to tail from the end of the file, false to tail from the beginning of the file.
+     * @param reOpen if true, close and reopen the file between reading chunks
+     * @param ignoreNew if true, will ignore reading modified file with the same length.
+     */
+    public Tailer(final File file, final TailerListener listener, final long delayMillis, final boolean end,
+            final boolean reOpen, final boolean ignoreNew) {
+        this(file, listener, delayMillis, end, reOpen, ignoreNew, DEFAULT_BUFSIZE);
+    }
+
+    /**
      * Creates a Tailer for the given file, with a specified buffer size.
+     *
      * @param file the file to follow.
      * @param listener the TailerListener to use.
      * @param delayMillis the delay between checks of the file for new content in milliseconds.
@@ -220,12 +263,13 @@ public class Tailer implements Runnable {
      * @param bufSize Buffer size
      */
     public Tailer(final File file, final TailerListener listener, final long delayMillis, final boolean end,
-                  final int bufSize) {
+            final int bufSize) {
         this(file, listener, delayMillis, end, false, bufSize);
     }
 
     /**
      * Creates a Tailer for the given file, with a specified buffer size.
+     *
      * @param file the file to follow.
      * @param listener the TailerListener to use.
      * @param delayMillis the delay between checks of the file for new content in milliseconds.
@@ -234,23 +278,40 @@ public class Tailer implements Runnable {
      * @param bufSize Buffer size
      */
     public Tailer(final File file, final TailerListener listener, final long delayMillis, final boolean end,
-                  final boolean reOpen, final int bufSize) {
-        this(file, DEFAULT_CHARSET, listener, delayMillis, end, reOpen, bufSize);
+            final boolean reOpen, final int bufSize) {
+        this(file, DEFAULT_CHARSET, listener, delayMillis, end, reOpen, false, bufSize);
     }
 
     /**
      * Creates a Tailer for the given file, with a specified buffer size.
+     *
      * @param file the file to follow.
-     * @param charset the Charset to be used for reading the file
      * @param listener the TailerListener to use.
      * @param delayMillis the delay between checks of the file for new content in milliseconds.
      * @param end Set to true to tail from the end of the file, false to tail from the beginning of the file.
      * @param reOpen if true, close and reopen the file between reading chunks
+     * @param ignoreNew if true, will ignore reading modified file with the same length.
      * @param bufSize Buffer size
      */
-    public Tailer(final File file, final Charset charset, final TailerListener listener, final long delayMillis,
-                  final boolean end, final boolean reOpen
-            , final int bufSize) {
+    public Tailer(final File file, final TailerListener listener, final long delayMillis, final boolean end,
+            final boolean reOpen, final boolean ignoreNew, final int bufSize) {
+        this(file, DEFAULT_CHARSET, listener, delayMillis, end, reOpen, ignoreNew, bufSize);
+    }
+
+    /**
+     * Creates a Tailer for the given file, with a specified buffer size.
+     *
+     * @param file the file to follow.
+     * @param cset the Charset to be used for reading the file
+     * @param listener the TailerListener to use.
+     * @param delayMillis the delay between checks of the file for new content in milliseconds.
+     * @param end Set to true to tail from the end of the file, false to tail from the beginning of the file.
+     * @param reOpen if true, close and reopen the file between reading chunks
+     * @param ignoreNew if true, will ignore reading modified file with the same length.
+     * @param bufSize Buffer size
+     */
+    public Tailer(final File file, final Charset cset, final TailerListener listener, final long delayMillis,
+            final boolean end, final boolean reOpen, final boolean ignoreNew, final int bufSize) {
         this.file = file;
         this.delayMillis = delayMillis;
         this.end = end;
@@ -261,7 +322,8 @@ public class Tailer implements Runnable {
         this.listener = listener;
         listener.init(this);
         this.reOpen = reOpen;
-        this.charset = charset;
+        this.ignoreNew = ignoreNew;
+        this.cset = cset;
     }
 
     /**
@@ -275,7 +337,7 @@ public class Tailer implements Runnable {
      * @return The new tailer
      */
     public static Tailer create(final File file, final TailerListener listener, final long delayMillis,
-                                final boolean end, final int bufSize) {
+            final boolean end, final int bufSize) {
         return create(file, listener, delayMillis, end, false, bufSize);
     }
 
@@ -291,9 +353,25 @@ public class Tailer implements Runnable {
      * @return The new tailer
      */
     public static Tailer create(final File file, final TailerListener listener, final long delayMillis,
-                                final boolean end, final boolean reOpen,
-            final int bufSize) {
-        return create(file, DEFAULT_CHARSET, listener, delayMillis, end, reOpen, bufSize);
+            final boolean end, final boolean reOpen, final int bufSize) {
+        return create(file, DEFAULT_CHARSET, listener, delayMillis, end, reOpen, false, bufSize);
+    }
+
+    /**
+     * Creates and starts a Tailer for the given file.
+     *
+     * @param file the file to follow.
+     * @param listener the TailerListener to use.
+     * @param delayMillis the delay between checks of the file for new content in milliseconds.
+     * @param end Set to true to tail from the end of the file, false to tail from the beginning of the file.
+     * @param reOpen whether to close/reopen the file between chunks
+     * @param ignoreNew if true, will ignore reading modified file with the same length.
+     * @param bufSize buffer size.
+     * @return The new tailer
+     */
+    public static Tailer create(final File file, final TailerListener listener, final long delayMillis,
+            final boolean end, final boolean reOpen, final boolean ignoreNew, final int bufSize) {
+        return create(file, DEFAULT_CHARSET, listener, delayMillis, end, reOpen, ignoreNew, bufSize);
     }
 
     /**
@@ -305,13 +383,14 @@ public class Tailer implements Runnable {
      * @param delayMillis the delay between checks of the file for new content in milliseconds.
      * @param end Set to true to tail from the end of the file, false to tail from the beginning of the file.
      * @param reOpen whether to close/reopen the file between chunks
+     * @param ignoreNew if true, will ignore reading modified file with the same length.
      * @param bufSize buffer size.
      * @return The new tailer
      */
     public static Tailer create(final File file, final Charset charset, final TailerListener listener,
-                                final long delayMillis, final boolean end, final boolean reOpen
-            ,final int bufSize) {
-        final Tailer tailer = new Tailer(file, charset, listener, delayMillis, end, reOpen, bufSize);
+            final long delayMillis, final boolean end, final boolean reOpen, final boolean ignoreNew,
+            final int bufSize) {
+        final Tailer tailer = new Tailer(file, charset, listener, delayMillis, end, reOpen, ignoreNew, bufSize);
         final Thread thread = new Thread(tailer);
         thread.setDaemon(true);
         thread.start();
@@ -328,7 +407,7 @@ public class Tailer implements Runnable {
      * @return The new tailer
      */
     public static Tailer create(final File file, final TailerListener listener, final long delayMillis,
-                                final boolean end) {
+            final boolean end) {
         return create(file, listener, delayMillis, end, DEFAULT_BUFSIZE);
     }
 
@@ -343,8 +422,24 @@ public class Tailer implements Runnable {
      * @return The new tailer
      */
     public static Tailer create(final File file, final TailerListener listener, final long delayMillis,
-                                final boolean end, final boolean reOpen) {
+            final boolean end, final boolean reOpen) {
         return create(file, listener, delayMillis, end, reOpen, DEFAULT_BUFSIZE);
+    }
+
+    /**
+     * Creates and starts a Tailer for the given file with default buffer size.
+     *
+     * @param file the file to follow.
+     * @param listener the TailerListener to use.
+     * @param delayMillis the delay between checks of the file for new content in milliseconds.
+     * @param end Set to true to tail from the end of the file, false to tail from the beginning of the file.
+     * @param reOpen whether to close/reopen the file between chunks
+     * @param ignoreNew if true, will ignore reading modified file with the same length.
+     * @return The new tailer
+     */
+    public static Tailer create(final File file, final TailerListener listener, final long delayMillis,
+            final boolean end, final boolean reOpen, final boolean ignoreNew) {
+        return create(file, listener, delayMillis, end, reOpen, ignoreNew, DEFAULT_BUFSIZE);
     }
 
     /**
@@ -402,6 +497,7 @@ public class Tailer implements Runnable {
     /**
      * Follows changes in the file, calling the TailerListener's handle method for each new line.
      */
+    @SuppressWarnings("null")
     @Override
     public void run() {
         RandomAccessFile reader = null;
@@ -439,7 +535,7 @@ public class Tailer implements Runnable {
                         // Finish scanning the old file and then we'll start with the new one
                         try {
                             readLines(save);
-                        }  catch (final IOException ioe) {
+                        } catch (IOException ioe) {
                             listener.handle(ioe);
                         }
                         position = 0;
@@ -449,24 +545,27 @@ public class Tailer implements Runnable {
                         Thread.sleep(delayMillis);
                     }
                     continue;
-                }
-                // File was not rotated
-                // See if the file needs to be read again
-                if (length > position) {
-                    // The file has more content than it did last time
-                    position = readLines(reader);
-                    last = file.lastModified();
-                } else if (newer) {
-                    /*
-                     * This can happen if the file is truncated or overwritten with the exact same length of
-                     * information. In cases like this, the file position needs to be reset
-                     */
-                    position = 0;
-                    reader.seek(position); // cannot be null here
+                } else {
+                    // File was not rotated
+                    // See if the file needs to be read again
+                    if (length > position) {
+                        // The file has more content than it did last time
+                        position = readLines(reader);
+                        last = file.lastModified();
+                    } else if (newer) {
+                        if (!ignoreNew) {
+                            /*
+                             * This can happen if the file is truncated or overwritten with the exact same length of
+                             * information. In cases like this, the file position needs to be reset
+                             */
+                            position = 0;
+                            reader.seek(position); // cannot be null here
 
-                    // Now we can read new lines
-                    position = readLines(reader);
-                    last = file.lastModified();
+                            // Now we can read new lines
+                            position = readLines(reader);
+                        }
+                        last = file.lastModified();
+                    }
                 }
                 if (reOpen && reader != null) {
                     reader.close();
@@ -487,8 +586,7 @@ public class Tailer implements Runnable {
                 if (reader != null) {
                     reader.close();
                 }
-            }
-            catch (final IOException e) {
+            } catch (final IOException e) {
                 listener.handle(e);
             }
             stop();
@@ -518,10 +616,10 @@ public class Tailer implements Runnable {
             while (getRun() && ((num = reader.read(inbuf)) != EOF)) {
                 for (int i = 0; i < num; i++) {
                     final byte ch = inbuf[i];
-                    switch ( ch ) {
+                    switch (ch) {
                         case '\n':
                             seenCR = false; // swallow CR before LF
-                            listener.handle(new String(lineBuf.toByteArray(), charset));
+                            listener.handle(new String(lineBuf.toByteArray(), cset));
                             lineBuf.reset();
                             rePos = pos + i + 1;
                             break;
@@ -534,7 +632,7 @@ public class Tailer implements Runnable {
                         default:
                             if (seenCR) {
                                 seenCR = false; // swallow final CR
-                                listener.handle(new String(lineBuf.toByteArray(), charset));
+                                listener.handle(new String(lineBuf.toByteArray(), cset));
                                 lineBuf.reset();
                                 rePos = pos + i + 1;
                             }
